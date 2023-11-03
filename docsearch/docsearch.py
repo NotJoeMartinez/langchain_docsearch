@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import click
 from rich.console import Console
 from rich.markdown import Markdown
@@ -82,6 +83,35 @@ def load(data_path):
         }).from_loaders([loader])
     
 
+@click.command(help='List all loaded datasets')
+def list():
+
+    from rich.table import Table
+    config_path = os.path.expanduser('~/.config/docs/persist')
+
+    if not os.path.exists(config_path):
+        print("No datasets found. use load command to load a dataset.")
+        return    
+
+    conn = sqlite3.connect(os.path.join(config_path, "chroma.sqlite3"))
+    curr = conn.cursor()
+    curr.execute("""
+                 SELECT DISTINCT string_value FROM embedding_metadata 
+                 WHERE key ='source' 
+                 """)
+    documents = curr.fetchall() 
+
+    console = Console()
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Documents")
+
+    for document in documents:
+        table.add_row(Path(document[0]).name)
+    
+    console.print(table)
+
+
 
 
     
@@ -89,3 +119,4 @@ def load(data_path):
 
 cli.add_command(search)
 cli.add_command(load)
+cli.add_command(list)
