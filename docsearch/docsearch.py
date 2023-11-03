@@ -1,18 +1,13 @@
 import os
 import click
+from rich.console import Console
+from rich.markdown import Markdown
+from pathlib import Path
 from .config import get_or_create_config_path
 
 # import openai
-from langchain.chains import ConversationalRetrievalChain
-from langchain.chat_models import ChatOpenAI
-from langchain.document_loaders import DirectoryLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.indexes import VectorstoreIndexCreator
-from langchain.indexes.vectorstore import VectorStoreIndexWrapper
-from langchain.vectorstores import Chroma
 
-DOCS_VERSION_NUMBER = '0.0.2'
-
+DOCS_VERSION_NUMBER = '0.0.3'
 @click.group()
 @click.version_option(DOCS_VERSION_NUMBER, message='docs version: %(version)s')
 def cli():
@@ -27,6 +22,11 @@ def cli():
 @click.command(help='The initial question to start the conversation.')
 @click.argument('query', required=True )
 def search(query):
+    from langchain.chains import ConversationalRetrievalChain
+    from langchain.chat_models import ChatOpenAI
+    from langchain.embeddings import OpenAIEmbeddings
+    from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+    from langchain.vectorstores import Chroma
     
     config_path = os.path.expanduser('~/.config/docs/persist')
 
@@ -43,29 +43,44 @@ def search(query):
     )
 
     chat_history = []
+    console = Console()
     while True:
         if not query:
-            query = input("Prompt: ")
+            # query = input("Prompt: ")
+            query = click.prompt('Prompt', type=str)
         if query in ['quit', 'q', 'exit']:
-            click.echo("Exiting...")
+            # click.echo("Exiting...")
+            console.print("Exiting...")
             break
+
         result = chain({"question": query, "chat_history": chat_history})
-        click.echo(result['answer'])
+        console.print(Markdown(result['answer']))
+
 
         chat_history.append((query, result['answer']))
         query = None
 
 
 @click.command(help='Load a dataset from a directory')
-@click.argument('data_dir', required=True)
-def load(data_dir):
+@click.argument('data_path', required=True)
+def load(data_path):
+
+    from langchain.document_loaders import DirectoryLoader
+    from langchain.document_loaders import UnstructuredFileLoader
+
+    from langchain.indexes import VectorstoreIndexCreator
     persistant_path = os.path.join(get_or_create_config_path(), "persist")
-    loader = DirectoryLoader(data_dir)
+
+    if Path(data_path).is_dir():
+        loader = DirectoryLoader(data_path)
+    
+    if Path(data_path).is_file():
+        loader = UnstructuredFileLoader(data_path) 
+
     index = VectorstoreIndexCreator(vectorstore_kwargs={
         "persist_directory": persistant_path 
         }).from_loaders([loader])
     
-    # print(f"Loaded {len(index.vectorstore)} documents. to {persistant_path}")
 
 
 
