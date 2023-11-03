@@ -18,7 +18,7 @@ with open('README.md', 'r') as f:
 
 entry_points = {
     'console_scripts': [
-        'docs=docsearch.docsearch:main',
+        'docs=docsearch.docsearch:cli',
     ],
 }
 
