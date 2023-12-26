@@ -22,28 +22,43 @@ def cli():
 
 @click.command(help='The initial question to start the conversation.')
 @click.argument('query', required=True )
-def search(query):
+def ask(query):
     from langchain.chains import ConversationalRetrievalChain
     from langchain.chat_models import ChatOpenAI
     from langchain.embeddings import OpenAIEmbeddings
     from langchain.indexes.vectorstore import VectorStoreIndexWrapper
     from langchain.vectorstores import Chroma
-    
-    config_path = os.path.expanduser('~/.config/docs/persist')
+    from langchain.llms import OpenAI
+
+   
+    config_path = os.path.expanduser('~/.config/docs/yt-fts')
 
     if not os.path.exists(config_path):
         print("No datasets found. use load command to load a dataset.")
         return
     
+
+    # vectorstore = Chroma(persist_directory=config_path, embedding_function=OpenAIEmbeddings())
+    # index = VectorStoreIndexWrapper(vectorstore=vectorstore)
+
+    # chain = ConversationalRetrievalChain.from_llm(
+    #     llm=ChatOpenAI(model="gpt-3.5-turbo"),
+    #     retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
+    # )
+
+
     vectorstore = Chroma(persist_directory=config_path, embedding_function=OpenAIEmbeddings())
-    index = VectorStoreIndexWrapper(vectorstore=vectorstore)
+    vectordbkwargs = {"search_distance": 0.9}
 
     chain = ConversationalRetrievalChain.from_llm(
-        llm=ChatOpenAI(model="gpt-3.5-turbo"),
-        retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
+        OpenAI(temperature=0), vectorstore.as_retriever(), return_source_documents=True
     )
-
     chat_history = []
+    result = chain(
+        {"question": query, "chat_history": chat_history, "vectordbkwargs": vectordbkwargs}
+        )
+
+    # chat_history = []
     console = Console()
     while True:
         if not query:
@@ -54,12 +69,51 @@ def search(query):
             console.print("Exiting...")
             break
 
+        # print(chain, type(chain))
         result = chain({"question": query, "chat_history": chat_history})
-        console.print(Markdown(result['answer']))
+        print(result["source_documents"][0])
 
-
+        console.print("[bold]Answer:[/bold] " + result['answer'])
         chat_history.append((query, result['answer']))
         query = None
+
+
+
+@click.command(help='The initial question to start the conversation.')
+@click.argument('query', required=True )
+def search(query):
+    from langchain.chains import ConversationalRetrievalChain
+    from langchain.embeddings import OpenAIEmbeddings
+    from langchain.vectorstores import Chroma
+    from langchain.llms import OpenAI
+
+   
+    config_path = os.path.expanduser('~/.config/docs/yt-fts')
+
+    if not os.path.exists(config_path):
+        print("No datasets found. use load command to load a dataset.")
+        return
+    
+    vectorstore = Chroma(persist_directory=config_path, embedding_function=OpenAIEmbeddings())
+    vectordbkwargs = {"search_distance": 0.9}
+
+    chain = ConversationalRetrievalChain.from_llm(
+        OpenAI(temperature=0), vectorstore.as_retriever(), return_source_documents=True
+    )
+    chat_history = []
+    result = chain(
+        {"question": query, "chat_history": chat_history, "vectordbkwargs": vectordbkwargs}
+        )
+
+    result = chain({"question": query, "chat_history": chat_history})
+    document = result["source_documents"][0].metadata["source"]
+    page_content = result["source_documents"][0].page_content
+
+    console = Console()
+    console.print(f"[bold]Document:[/bold] {document}\n")
+    console.print(f"[bold]Page Content:[/bold]{page_content}\n")   
+    console.print("[bold]Answer:[/bold]\n" + result['answer'])
+
 
 
 @click.command(help='Load a dataset from a directory')
@@ -70,7 +124,7 @@ def load(data_path):
     from langchain.document_loaders import UnstructuredFileLoader
 
     from langchain.indexes import VectorstoreIndexCreator
-    persistant_path = os.path.join(get_or_create_config_path(), "persist")
+    persistant_path = os.path.join(get_or_create_config_path(), "yt-fts")
 
     if Path(data_path).is_dir():
         loader = DirectoryLoader(data_path)
@@ -87,7 +141,7 @@ def load(data_path):
 def list():
 
     from rich.table import Table
-    config_path = os.path.expanduser('~/.config/docs/persist')
+    config_path = os.path.expanduser('~/.config/docs/yt-fts')
 
     if not os.path.exists(config_path):
         print("No datasets found. use load command to load a dataset.")
@@ -118,5 +172,6 @@ def list():
 
 
 cli.add_command(search)
+cli.add_command(ask)
 cli.add_command(load)
 cli.add_command(list)
